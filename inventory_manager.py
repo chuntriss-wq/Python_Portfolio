@@ -81,7 +81,7 @@ def remove_item(item, quantity):
         if quantity < current_qty:
             # We are removing some, but not all of the item
             
-            # --- Your Task 1: Subtract the quantity from the current item's quantity ---
+           
             inventory[item]['quantity'] = current_qty - quantity 
             
             print(f"➖ Removed {quantity} x {item}. Remaining: {inventory[item]['quantity']}\n")
@@ -89,7 +89,7 @@ def remove_item(item, quantity):
         elif quantity >= current_qty:
             # We are removing all or more than we have (which should delete the entry)
             
-            # --- Your Task 2: Use the 'del' keyword to remove the item from the inventory dictionary entirely ---
+           
             del inventory[item]
             
             print(f"🔥 Removed all {item}s from inventory.\n")
