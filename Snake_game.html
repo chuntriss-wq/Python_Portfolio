@@ -1,0 +1,656 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal Decaying Snake Game</title>
+    <!-- We are using custom CSS here to create a classic, retro game aesthetic -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+        
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            margin: 0;
+            background-color: #000000;
+            color: #ffffff;
+            font-family: 'Press Start 2P', monospace;
+            padding: 20px;
+        }
+
+        .game-container {
+            /* Initial Retro Border: Bright green shadow */
+            border: 5px solid #00ff00;
+            box-shadow: 0 0 20px #00ff00, inset 0 0 10px #00ff00;
+            background-color: #1a1a1a;
+            padding: 10px;
+            border-radius: 8px;
+            transition: box-shadow 0.1s ease-in-out; /* For immunity effect */
+        }
+        
+        /* New class for the immunity effect */
+        .immune {
+            border-color: #FFFF00 !important;
+            box-shadow: 0 0 30px 5px #FFFF00, inset 0 0 15px #FFD700 !important;
+        }
+
+        canvas {
+            display: block;
+            background-color: #0d120d; /* Darker green/black background for the grid */
+        }
+
+        .info-panel {
+            display: flex;
+            justify-content: space-between;
+            width: 100%;
+            max-width: 420px;
+            margin-bottom: 15px;
+            text-align: center;
+            font-size: 10px;
+            padding: 5px 0;
+        }
+
+        .message-box {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.95);
+            border: 3px solid #ff0000;
+            padding: 20px 30px;
+            border-radius: 8px;
+            text-align: center;
+            z-index: 100;
+            box-shadow: 0 0 25px #ff0000;
+            font-size: 14px;
+            line-height: 1.5;
+        }
+
+        .message-box button {
+            background-color: #00ff00;
+            color: #000000;
+            border: none;
+            padding: 10px 20px;
+            margin-top: 15px;
+            cursor: pointer;
+            font-family: 'Press Start 2P', monospace;
+            border-radius: 4px;
+            transition: background-color 0.1s;
+        }
+
+        .message-box button:hover {
+            background-color: #33ff33;
+        }
+
+        h1 {
+            font-size: 18px;
+            margin-top: 0;
+            margin-bottom: 15px;
+            color: #00ff00;
+            text-shadow: 0 0 5px #00ff00;
+        }
+        
+        /* CSS for the blinking power-up icon */
+        @keyframes blink {
+            0% { opacity: 1; }
+            50% { opacity: 0.2; }
+            100% { opacity: 1; }
+        }
+        .blinking-powerup {
+            animation: blink 0.5s step-start infinite;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="info-panel">
+        <div id="scoreDisplay">Score: 0</div>
+        <div id="statusDisplay">Press any Arrow Key to Start!</div>
+    </div>
+    
+    <div id="gameContainer" class="game-container">
+        <canvas id="gameCanvas" width="400" height="400"></canvas>
+    </div>
+
+    <!-- The message box is initially hidden -->
+    <div id="messageBox" class="message-box" style="display: none;">
+        <div id="messageText"></div>
+        <button id="restartButton" onclick="restartGame()">RESTART (R)</button>
+    </div>
+
+    <script>
+        // --- 1. GAME CONSTANTS & SETUP ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const gameContainer = document.getElementById('gameContainer');
+        const scoreDisplay = document.getElementById('scoreDisplay');
+        const statusDisplay = document.getElementById('statusDisplay');
+        const messageBox = document.getElementById('messageBox');
+        const messageText = document.getElementById('messageText');
+
+        // Dimensions (20 tiles across, 20 tiles down)
+        const GRID_SIZE = 20; 
+        const TILE_SIZE = canvas.width / GRID_SIZE; // 400 / 20 = 20px
+
+        // Game Rules Constants
+        const NUM_BOMBS = 5;
+        const IMMUNITY_DURATION = 5000; // 5 seconds
+        
+        // Colors
+        const PORTAL_COLOR_A = '#00FFFF'; // Cyan
+        const PORTAL_COLOR_B = '#FF00FF'; // Magenta
+        const BOMB_COLOR = '#FF8C00'; // Dark Orange
+        const POWERUP_COLOR = '#FFFF00'; // Yellow
+        const IMMUNE_COLOR = '#FFFFFF'; // White for immune snake head
+
+        // Game State Variables
+        let snake = [];
+        let foodPosition = { x: 0, y: 0 };
+        let score = 0;
+        let gameInterval = null;
+        let GAME_SPEED = 150; // Milliseconds per move (slower = easier)
+        let isGameOver = false;
+        let isGamePaused = true;
+        
+        // Direction tracking (used to prevent 180-degree turns)
+        let direction = 'RIGHT'; 
+        let nextDirection = 'RIGHT'; 
+
+        // New Game State Variables for Portal/Bomb/Power-up
+        let PORTAL_A = { x: 3, y: 3 }; // Fixed position A
+        let PORTAL_B = { x: GRID_SIZE - 4, y: GRID_SIZE - 4 }; // Fixed position B
+        let bombs = [];
+        let powerUpPosition = null;
+        let isImmune = false;
+        let immunityTimer = null;
+        let powerUpInterval = null;
+
+
+        // --- 2. CORE LOGIC FUNCTIONS ---
+        
+        function getEmptyPosition() {
+            /** Returns a random position on the grid that is not occupied by snake, food, portal, or bomb. */
+            while (true) {
+                const x = Math.floor(Math.random() * GRID_SIZE);
+                const y = Math.floor(Math.random() * GRID_SIZE);
+                const checkPos = { x, y };
+                
+                // Check if position is occupied by snake, portals, or bombs
+                const isOccupied = snake.some(s => s.x === x && s.y === y) ||
+                                   (x === PORTAL_A.x && y === PORTAL_A.y) ||
+                                   (x === PORTAL_B.x && y === PORTAL_B.y) ||
+                                   bombs.some(b => b.x === x && b.y === y);
+
+                if (!isOccupied) {
+                    return checkPos;
+                }
+            }
+        }
+
+        function placeFood() {
+            /** Places the food at a random, empty location on the grid. */
+            foodPosition = getEmptyPosition();
+        }
+        
+        function placeBombs(count = NUM_BOMBS) {
+            /** Places a fixed number of bombs at random, empty locations. */
+            for (let i = 0; i < count; i++) {
+                bombs.push(getEmptyPosition());
+            }
+        }
+        
+        function placePowerUp() {
+             /** Places the power-up at a random, empty location. */
+             if (powerUpPosition === null) {
+                powerUpPosition = getEmptyPosition();
+             }
+        }
+        
+        function startPowerUpSpawn() {
+            /** Sets an interval to place a powerup if one is not currently active. */
+            // Clear any existing interval
+            if (powerUpInterval) clearInterval(powerUpInterval);
+
+            // Powerup spawns every 10-15 seconds if one is not present
+            const randomTime = 10000 + Math.random() * 5000; 
+            powerUpInterval = setInterval(() => {
+                if (powerUpPosition === null && !isImmune) {
+                    placePowerUp();
+                }
+            }, randomTime);
+        }
+        
+        function drawPortal(x, y, color) {
+            /** Draws a portal tile with a ring effect. */
+            const centerX = x * TILE_SIZE + TILE_SIZE / 2;
+            const centerY = y * TILE_SIZE + TILE_SIZE / 2;
+            const radius = TILE_SIZE / 2 * 0.9;
+            
+            ctx.fillStyle = color;
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 2;
+            
+            // Outer Ring (100% size)
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+            ctx.stroke();
+            
+            // Inner Dot (50% size)
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius * 0.5, 0, 2 * Math.PI);
+            ctx.fill();
+        }
+
+        function drawBomb(x, y) {
+             /** Draws a square bomb icon (ticking bomb effect via red square/fuse). */
+            const centerX = x * TILE_SIZE + TILE_SIZE / 2;
+            const centerY = y * TILE_SIZE + TILE_SIZE / 2;
+            const size = TILE_SIZE * 0.7;
+
+            // Main bomb body (Square)
+            ctx.fillStyle = BOMB_COLOR;
+            ctx.fillRect(centerX - size / 2, centerY - size / 2, size, size);
+            
+            // Fuse (small line)
+            ctx.strokeStyle = '#FFFFFF';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(centerX + size/2, centerY - size/2);
+            ctx.lineTo(centerX + size/2 + 3, centerY - size/2 - 3);
+            ctx.stroke();
+        }
+
+        function drawPowerUp(x, y) {
+            /** Draws the blinking shield power-up. */
+            const centerX = x * TILE_SIZE + TILE_SIZE / 2;
+            const centerY = y * TILE_SIZE + TILE_SIZE / 2;
+            const radius = TILE_SIZE / 2 * 0.8;
+            
+            // Apply blinking animation via opacity
+            const time = new Date().getTime();
+            const opacity = 0.5 + 0.5 * Math.sin(time / 150); // Blinks from 0.5 to 1
+            
+            ctx.save();
+            ctx.globalAlpha = opacity;
+            
+            // Draw a yellow star/shield shape
+            ctx.fillStyle = POWERUP_COLOR;
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, radius, 0, 2 * Math.PI);
+            ctx.fill();
+            
+            ctx.restore();
+        }
+
+        function drawTile(x, y, color) {
+            /** Draws a single square tile on the canvas. */
+            ctx.fillStyle = color;
+            ctx.fillRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+            
+            // Add a small border for the retro block look
+            ctx.strokeStyle = '#000000'; 
+            ctx.strokeRect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE);
+        }
+
+        function draw() {
+            /** Clears the canvas and draws all game elements. */
+            
+            // 1. Clear the canvas (maintains the dark background set by CSS)
+            ctx.clearRect(0, 0, canvas.width, canvas.height); 
+            
+            // 2. Draw Portals
+            drawPortal(PORTAL_A.x, PORTAL_A.y, PORTAL_COLOR_A);
+            drawPortal(PORTAL_B.x, PORTAL_B.y, PORTAL_COLOR_B);
+
+            // 3. Draw Bombs
+            bombs.forEach(bomb => drawBomb(bomb.x, bomb.y));
+            
+            // 4. Draw Power-Up
+            if (powerUpPosition) {
+                drawPowerUp(powerUpPosition.x, powerUpPosition.y);
+            }
+
+            // 5. Draw Food (Red)
+            if (!isGameOver) {
+                // Use a circular shape for food
+                ctx.fillStyle = '#FF0000';
+                const centerX = foodPosition.x * TILE_SIZE + TILE_SIZE / 2;
+                const centerY = foodPosition.y * TILE_SIZE + TILE_SIZE / 2;
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, TILE_SIZE / 2 * 0.8, 0, 2 * Math.PI);
+                ctx.fill();
+            }
+
+            // 6. Draw Snake
+            for (let i = 0; i < snake.length; i++) {
+                const segment = snake[i];
+                let color;
+                if (i === 0) {
+                    // Head is slightly brighter green, or white if immune
+                    color = isImmune ? IMMUNE_COLOR : '#33FF33'; 
+                } else {
+                    // Body is a darker green
+                    color = '#00CC00'; 
+                }
+                drawTile(segment.x, segment.y, color);
+            }
+            
+            // 7. Update Displays
+            scoreDisplay.textContent = `Score: ${score}`;
+            
+            if (isImmune) {
+                const timeLeft = immunityTimer ? Math.ceil(immunityTimer._remaining / 1000) : 0;
+                statusDisplay.textContent = `SHIELD ACTIVE! (${timeLeft}s)`;
+                gameContainer.classList.add('immune');
+            } else if (isGamePaused) {
+                statusDisplay.textContent = 'PAUSED. Press P or an Arrow Key.';
+                gameContainer.classList.remove('immune');
+            } else if (isGameOver) {
+                statusDisplay.textContent = 'GAME OVER!';
+                gameContainer.classList.remove('immune');
+            } else {
+                 statusDisplay.textContent = `Length: ${snake.length}`;
+                 gameContainer.classList.remove('immune');
+            }
+            
+            // Request next frame for the blinking power-up and immunity timer update
+            if (!isGameOver && !isGamePaused) {
+                requestAnimationFrame(draw);
+            }
+        }
+        
+        function activateImmunity() {
+            /** Activates the shield power-up effect. */
+            if (immunityTimer) clearTimeout(immunityTimer);
+            isImmune = true;
+            
+            // Setup a custom timer object to track remaining time for display
+            let start = Date.now();
+            
+            immunityTimer = setTimeout(() => {
+                isImmune = false;
+                statusDisplay.textContent = `Length: ${snake.length}`; 
+                // We don't restart powerUpSpawn here, it runs in the main game loop check
+                immunityTimer = null;
+            }, IMMUNITY_DURATION);
+            
+            // Add a property to the timeout object to track remaining time
+            immunityTimer._start = Date.now();
+            immunityTimer._remaining = IMMUNITY_DURATION;
+            
+            draw(); // Redraw immediately to show immune state
+        }
+
+        function update() {
+            /** * The main game loop function.
+             * Calculates movement, checks collisions, and updates game state.
+             */
+            if (isGameOver || isGamePaused) {
+                return;
+            }
+
+            // Apply the safe direction change determined by the input handler
+            direction = nextDirection;
+
+            // 1. Calculate new head position
+            const head = snake[0];
+            let newHead = { x: head.x, y: head.y };
+
+            switch (direction) {
+                case 'UP': newHead.y--; break;
+                case 'DOWN': newHead.y++; break;
+                case 'LEFT': newHead.x--; break;
+                case 'RIGHT': newHead.x++; break;
+            }
+            
+            // 2. Check for PORTAL teleportation
+            if (newHead.x === PORTAL_A.x && newHead.y === PORTAL_A.y) {
+                newHead.x = PORTAL_B.x;
+                newHead.y = PORTAL_B.y;
+            } else if (newHead.x === PORTAL_B.x && newHead.y === PORTAL_B.y) {
+                newHead.x = PORTAL_A.x;
+                newHead.y = PORTAL_A.y;
+            }
+
+            // 3. Check for game-ending collision
+            
+            // A. Wall Collision
+            if (newHead.x < 0 || newHead.x >= GRID_SIZE || 
+                newHead.y < 0 || newHead.y >= GRID_SIZE) {
+                endGame(`Ouch! You hit the wall.`);
+                return;
+            }
+
+            // B. Self-Collision (Check if the new head hits any part of the body starting from segment 1)
+            for (let i = 1; i < snake.length; i++) {
+                if (newHead.x === snake[i].x && newHead.y === snake[i].y) {
+                    endGame(`Ouch! You bit yourself.`);
+                    return;
+                }
+            }
+            
+            // C. Bomb Collision
+            const isBombCollision = bombs.some(bomb => bomb.x === newHead.x && bomb.y === newHead.y);
+            if (isBombCollision) {
+                if (isImmune) {
+                    // Destroy the bomb and replace it
+                    bombs = bombs.filter(bomb => !(bomb.x === newHead.x && bomb.y === newHead.y));
+                    bombs.push(getEmptyPosition()); // Replace the destroyed bomb
+                    score += 5; // Small bonus for defusing
+                } else {
+                    endGame(`BOOM! You hit a ticking bomb.`);
+                    return;
+                }
+            }
+            
+            // D. Power-up Consumption
+            if (powerUpPosition && newHead.x === powerUpPosition.x && newHead.y === powerUpPosition.y) {
+                activateImmunity();
+                powerUpPosition = null; 
+            }
+            
+            // 4. Insert the new head at the beginning
+            snake.unshift(newHead);
+
+            // 5. Check if the snake ate the food
+            if (newHead.x === foodPosition.x && newHead.y === foodPosition.y) {
+                score += 10;
+                placeFood(); // Place new food (snake grows because the tail is not popped)
+                
+                // Increase speed slightly for a challenge (min speed is 50ms)
+                GAME_SPEED = Math.max(50, GAME_SPEED - 2); 
+                clearInterval(gameInterval);
+                gameInterval = setInterval(update, GAME_SPEED);
+
+            } else {
+                // If no food is eaten, remove the tail segment (snake moves without growing)
+                snake.pop();
+            }
+
+            // 6. Redraw the board is handled by requestAnimationFrame in draw()
+        }
+        
+        function handleInput(event) {
+            /** Maps keyboard input to the nextDirection state, preventing 180-degree turns. */
+            
+            const key = event.key.toUpperCase();
+            
+            // R: Restart
+            if (key === 'R') {
+                restartGame();
+                return;
+            }
+            
+            // P or Space: Pause/Resume
+            if (key === 'P' || key === ' ') {
+                togglePause();
+                return;
+            }
+            
+            // Start the game loop on first input if paused
+            if (isGamePaused && !isGameOver) {
+                isGamePaused = false;
+                // If this is the first move, ensure the direction is set correctly
+                direction = nextDirection;
+                startGameLoop();
+                messageBox.style.display = 'none'; // Hide pause message
+                // Start the visual loop for blinking/timer
+                requestAnimationFrame(draw);
+            }
+
+
+            let newDirection;
+            
+            // Use arrow keys or WASD
+            if (key === 'ARROWUP' || key === 'W') {
+                newDirection = 'UP';
+            } else if (key === 'ARROWDOWN' || key === 'S') {
+                newDirection = 'DOWN';
+            } else if (key === 'ARROWLEFT' || key === 'A') {
+                newDirection = 'LEFT';
+            } else if (key === 'ARROWRIGHT' || key === 'D') {
+                newDirection = 'RIGHT';
+            } else {
+                return; // Ignore other keys
+            }
+
+            // Prevent turning 180 degrees (e.g., UP -> DOWN)
+            const isOpposite = (
+                (newDirection === 'UP' && direction === 'DOWN') ||
+                (newDirection === 'DOWN' && direction === 'UP') ||
+                (newDirection === 'LEFT' && direction === 'RIGHT') ||
+                (newDirection === 'RIGHT' && direction === 'LEFT')
+            );
+
+            if (!isOpposite) {
+                // Safely update the direction for the next game tick
+                nextDirection = newDirection;
+            }
+            
+            // Prevent default browser actions (like scrolling)
+            event.preventDefault(); 
+        }
+
+        function endGame(reason) {
+            /** Stops the game loop and shows the game over message. */
+            isGameOver = true;
+            clearInterval(gameInterval);
+            if (immunityTimer) clearTimeout(immunityTimer);
+            if (powerUpInterval) clearInterval(powerUpInterval);
+            
+            messageText.innerHTML = `
+                <h2 style="color: #ff0000; margin-bottom: 5px;">GAME OVER</h2>
+                <p>${reason}</p>
+                <p>Final Score: <strong>${score}</strong></p>
+                <p>Length: <strong>${snake.length}</strong></p>
+            `;
+            messageBox.style.display = 'block';
+            draw(); // Redraw the final state
+        }
+        
+        function togglePause() {
+            /** Pauses or resumes the game. */
+            if (isGameOver) return;
+
+            isGamePaused = !isGamePaused;
+            if (isGamePaused) {
+                clearInterval(gameInterval);
+                if (immunityTimer) {
+                    // Pause immunity timer if active
+                    const elapsed = Date.now() - immunityTimer._start;
+                    immunityTimer._remaining = IMMUNITY_DURATION - elapsed;
+                    clearTimeout(immunityTimer);
+                }
+                statusDisplay.textContent = 'GAME PAUSED';
+                messageText.innerHTML = `
+                    <h2 style="color: #00ff00; margin-bottom: 5px;">PAUSED</h2>
+                    <p>Press 'P' or 'Space' to resume.</p>
+                `;
+                messageBox.style.display = 'block';
+            } else {
+                // Resume game
+                if (immunityTimer && immunityTimer._remaining > 0) {
+                    // Resume immunity timer
+                    immunityTimer = setTimeout(() => {
+                        isImmune = false;
+                        statusDisplay.textContent = `Length: ${snake.length}`;
+                        immunityTimer = null;
+                        draw();
+                    }, immunityTimer._remaining);
+                    immunityTimer._start = Date.now(); // Reset start time for accurate tracking
+                }
+                startGameLoop();
+                messageBox.style.display = 'none';
+                statusDisplay.textContent = `Length: ${snake.length}`;
+                requestAnimationFrame(draw);
+            }
+            draw();
+        }
+
+        function initializeGame() {
+            /** Resets all variables to their initial state. */
+            isGameOver = false;
+            isGamePaused = true;
+            score = 0;
+            direction = 'RIGHT';
+            nextDirection = 'RIGHT';
+            GAME_SPEED = 150;
+            isImmune = false;
+            bombs = []; // Clear old bombs
+            powerUpPosition = null; // Clear power up
+            
+            if (immunityTimer) clearTimeout(immunityTimer);
+            if (powerUpInterval) clearInterval(powerUpInterval);
+            
+            // Initial snake position (near center-left)
+            const startY = Math.floor(GRID_SIZE / 2);
+            const startX = Math.floor(GRID_SIZE / 4);
+            
+            // Snake starts with 3 segments
+            snake = [
+                { x: startX, y: startY },       // Head
+                { x: startX - 1, y: startY },   // Body 1
+                { x: startX - 2, y: startY }    // Body 2
+            ];
+            
+            placeFood();
+            placeBombs(); // Place the initial bombs
+            startPowerUpSpawn(); // Start the spawning of power-ups
+
+            // Clear any existing interval
+            if (gameInterval) {
+                clearInterval(gameInterval);
+            }
+            gameInterval = null; 
+            
+            messageBox.style.display = 'none';
+            statusDisplay.textContent = 'Press any Arrow Key to Start!';
+            draw();
+        }
+        
+        function startGameLoop() {
+            /** Starts the main game loop using the current speed. */
+            if (gameInterval) {
+                 clearInterval(gameInterval);
+            }
+            gameInterval = setInterval(update, GAME_SPEED);
+        }
+
+        function restartGame() {
+            initializeGame();
+        }
+
+        // --- 3. EVENT LISTENERS & START ---
+
+        // Listen for keyboard input globally
+        document.addEventListener('keydown', handleInput);
+
+        // Start the game initialization when the page loads
+        window.onload = initializeGame;
+
+    </script>
+</body>
+</html>

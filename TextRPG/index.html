@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Text Battle RPG</title>
+    <style>
+        /* Basic CSS to make it readable */
+        body { font-family: sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; }
+        .stats { display: flex; justify-content: space-around; margin-bottom: 20px; }
+        .log-box { border: 1px solid #ccc; height: 200px; overflow-y: scroll; padding: 10px; background-color: #f9f9f9; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h1>⚔️ The Text Battle</h1>
+
+    <div class="stats">
+        <div id="player-stats"></div>
+        <div id="enemy-stats"></div>
+    </div>
+
+    <button id="attack-button">ATTACK chris_lionheart!</button>
+
+    <h3>Battle Log:</h3>
+    <div id="battle-log" class="log-box"></div>
+
+    <script src="game.js"></script>
+
+</body>
+</html>
