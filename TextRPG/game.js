@@ -10,6 +10,7 @@ const enemy = {
     health: 200,
     attack_power: 10
 };
+const MIN_DAMAGE = 5;
 
 // --- DOM Elements (References to HTML elements) ---
 const playerStatsDiv = document.getElementById('player-stats');
@@ -19,26 +20,38 @@ const attackButton = document.getElementById('attack-button');
 
 // --- 2. CODE REUSABILITY (Function) ---
 function calculateDamage(maxPower) {
-    // Math.random gives a number between 0 and 1.
-    // Math.floor rounds down to a whole number.
-    // Damage is between 5 and maxPower (inclusive).
-    return Math.floor(Math.random() * (maxPower - 5 + 1)) + 5;
-}
+    const MIN_DAMAGE = 5;
+    // Base damage calculation remains the same
+    let damage = Math.floor(Math.random() * (maxPower - MIN_DAMAGE + 1)) + MIN_DAMAGE;
 
+    // New: Critical Hit Logic (e.g., 15% chance)
+    const CRIT_CHANCE = 0.15; // 15%
+    if (Math.random() < CRIT_CHANCE) {
+        damage *= 2; // Double the damage
+        return { damage: damage, isCrit: true }; // Return an object
+    }
+
+    return { damage: damage, isCrit: false }; // Return an object
+}
 // --- 3. GAME FUNCTIONS ---
 
 // Function to update the visible stats on the page
 function updateStats() {
     playerStatsDiv.innerHTML = `
-        <h2>${player.name}</h2>
-        <p>❤️ HP: **${player.health}**</p>
-        <p>⚔️ Max Attack: ${player.attack_power}</p>
+        <div class="stats">
+            <h2>Player Stats</h2>
+            <h3>${player.name}</h3>
+            <p>❤️ HP: <strong>${player.health}</strong></p>
+            <p>⚔️ Max Attack: ${player.attack_power}</p>
+        </div>
     `;
 
     enemyStatsDiv.innerHTML = `
-        <h2>${enemy.name}</h2>
-        <p>❤️ HP: **${enemy.health}**</p>
-        <p>⚔️ Max Attack: ${enemy.attack_power}</p>
+        <div class="stats">
+            <h3>${enemy.name}</h3>
+            <p>❤️ HP: <strong>${enemy.health}</strong></p>
+            <p>⚔️ Max Attack: ${enemy.attack_power}</p>
+        </div>
     `;
 }
 
@@ -51,6 +64,7 @@ function logMessage(message) {
 }
 
 // The main battle function, triggered by the button click
+
 function handleAttack() {
     if (player.health <= 0 || enemy.health <= 0) {
         logMessage("The battle is over!");
@@ -59,13 +73,19 @@ function handleAttack() {
     }
 
     // --- Player's Turn ---
-    const playerHit = calculateDamage(player.attack_power);
-    enemy.health -= playerHit;
-    logMessage(`⚔️ **${player.name}** hits **${enemy.name}** for **${playerHit}** damage!`);
+    const playerHitResult = calculateDamage(player.attack_power); // Result is { damage: X, isCrit: Y }
+    const playerDamage = playerHitResult.damage; // Extract the actual damage number
+    
+    enemy.health -= playerDamage; // ✅ FIX 1: Subtract the damage number
+    
+    const playerLog = playerHitResult.isCrit ? 
+        `💥 CRITICAL HIT! 💥 **${player.name}** hits **${enemy.name}** for **${playerDamage}** damage!` :
+        `⚔️ **${player.name}** hits **${enemy.name}** for **${playerDamage}** damage!`;
+    logMessage(playerLog);
 
     // --- Win/Loss Check (after player's turn) ---
     if (enemy.health <= 0) {
-        enemy.health = 0; // Prevent negative HP display
+        enemy.health = 0;
         updateStats();
         logMessage("✨🏆 **VICTORY!** You defeated the enemy! 🏆✨");
         attackButton.disabled = true;
@@ -73,13 +93,19 @@ function handleAttack() {
     }
 
     // --- Enemy's Turn ---
-    const enemyHit = calculateDamage(enemy.attack_power);
-    player.health -= enemyHit;
-    logMessage(`🤕 **${enemy.name}** retaliates, hitting **${player.name}** for **${enemyHit}** damage!`);
+    const enemyHitResult = calculateDamage(enemy.attack_power); // Result is { damage: X, isCrit: Y }
+    const enemyDamage = enemyHitResult.damage; // Extract the actual damage number
+    
+    player.health -= enemyDamage; // ✅ FIX 2: Subtract the damage number
+    
+    const enemyLog = enemyHitResult.isCrit ?
+        `💥 CRITICAL HIT! 💥 🤕 **${enemy.name}** retaliates, hitting **${player.name}** for **${enemyDamage}** damage!` :
+        `🤕 **${enemy.name}** retaliates, hitting **${player.name}** for **${enemyDamage}** damage!`;
+    logMessage(enemyLog);
 
     // --- Win/Loss Check (after enemy's turn) ---
     if (player.health <= 0) {
-        player.health = 0; // Prevent negative HP display
+        player.health = 0;
         updateStats();
         logMessage("💀 **GAME OVER!** You have been defeated. 💀");
         attackButton.disabled = true;
@@ -95,3 +121,22 @@ attackButton.addEventListener('click', handleAttack);
 updateStats(); // Display initial health
 logMessage(`A wild **${enemy.name}** appears! Get ready to fight!`);
 logMessage(`You (**${player.name}**) have **${player.health}** HP.`);
+
+// Play Again button
+const playAgainButton = document.getElementById('play-again-button');
+playAgainButton.addEventListener('click', () => {
+    // 1. Clear the battle log for a fresh start
+    battleLog.innerHTML = ''; 
+    
+    // 2. Reset player and enemy stats
+    player.health = 100;
+    enemy.health = 200;
+    
+    // 3. Re-enable the attack button
+    attackButton.disabled = false;
+    
+    // 4. Update the visual stats and log the start message
+    updateStats();
+    logMessage(`A wild **${enemy.name}** appears! Get ready to fight!`);
+    logMessage(`You (**${player.name}**) have **${player.health}** HP.`);
+});
