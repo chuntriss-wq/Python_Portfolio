@@ -9,7 +9,7 @@ class WeeklyMealPlanner:
             "Thursday": ["Fish and Chips", "Veggie Burger", "Chicken Fajitas"],
             "Friday": ["Pizza", "Sushi", "Lamb Chops"],
             "Saturday": ["BBQ Ribs", "Quiche", "Salmon Teriyaki"],
-            "Sunday": ["Roast Chicken", "Vegetable Lasagna", "Steak and Potatoes"]
+            "Sunday": ["Roast Chicken", "Vegetable Lasagna", "Steak and Potatoes"] 
         }
 
     def generate_meal_plan(self):

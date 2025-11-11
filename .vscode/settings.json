@@ -4,6 +4,11 @@
             "path": "goals.py",
             "envManager": "ms-python.python:system",
             "packageManager": "ms-python.python:pip"
+        },
+        {
+            "path": "organizer.py",
+            "envManager": "ms-python.python:system",
+            "packageManager": "ms-python.python:pip"
         }
     ]
 }

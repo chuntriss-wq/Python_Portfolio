@@ -6,23 +6,22 @@ import random
 # Define the player's starting statistics
 player = {
     "name": "The Champion",
-    "health": 100,  # Starting health for the player
-    "attack_power": 15 # Max damage per turn
+    "health": 100, 
+    "attack_power": 15
 }
 
 # Define the enemy's starting statistics
 enemy = {
-    "name": "chris_lionheart",  # Give your enemy a name!
-    "health": 200, # Give the enemy a higher health than the player (e.g., 150)
-    "attack_power": 10 # Enemy max damage per turn
+    "name": "chris_lionheart",  
+    "health": 200,
+    "attack_power": 10 
 }
 
 # --- 2. CODE REUSABILITY RECIPE (Function) ---
 
 # This function will calculate random damage for a cleaner main loop.
 def calculate_damage(max_power):
-    # This uses the imported 'random' module
-    # Random damage will be between 5 and the maximum attack power provided
+   
     damage = random.randint(5, max_power)
     return damage
 
@@ -47,7 +46,7 @@ while player['health'] > 0 and enemy['health'] > 0:
         break # Breaks out of the while loop immediately if the enemy is defeated.
         
     # 2. Enemy's Turn
-    # We now correctly pass the enemy's attack power via the dictionary key
+   
     enemy_hit = calculate_damage(enemy['attack_power']) 
     # We subtract the random damage amount stored in 'enemy_hit'
     player['health'] = player['health'] - enemy_hit 
